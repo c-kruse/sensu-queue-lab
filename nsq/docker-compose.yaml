@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  nsqlookupd:
+    image: nsqio/nsq
+    command: /nsqlookupd
+
+  nsq-a:
+    image: nsqio/nsq
+    command: ['/nsqd', '--lookupd-tcp-address=nsqlookupd:4160']
+    volumes:
+      - ./:/work
+  nsq-b:
+    image: nsqio/nsq
+    command: ['/nsqd', '--lookupd-tcp-address=nsqlookupd:4160']
+  nsq-c:
+    image: nsqio/nsq
+    command: ['/nsqd', '--lookupd-tcp-address=nsqlookupd-1:4160,nsqlookupd-2:4160']
+
+  nsqadmin:
+    image: nsqio/nsq
+    command: ['/nsqadmin', '--lookupd-http-address=nsqlookupd:4161']
+    ports:
+      - 4171:4171
+
