@@ -1,0 +1,97 @@
+nsq_version: "1.2.1"
+nsq_arch: "linux-amd64"
+nsq_go_version: "go1.16.6"
+nsq_release: "nsq-{{ nsq_version }}.{{ nsq_arch }}.{{ nsq_go_version }}"
+nsq_release_archive: "{{ nsq_release }}.tar.gz"
+nsq_download_url: "https://s3.amazonaws.com/bitly-downloads/nsq/{{ nsq_release_archive }}"
+
+nsq_config_directory: /etcd/nsq
+nsq_data_directory: /var/lib/nsq
+
+nsq_binaries:
+  - nsqd
+  - nsqlookupd
+
+nsq_nsqd_opts: ""
+nsq_nsqd_install: false
+
+nsq_nsqlookupd_opts: ""
+nsq_nsqlookupd_install: false
+
+nsq_nsqd_opts: "{% for key, value in nsq_nsqd.items() if value is not none %}-{{ key | replace('_', '-') }}={{ value }} {% endfor %}"
+nsq_nsqlookupd_opts: "{% for key, value in nsq_nsqlookupd.items() if value is not none %}-{{ key | replace('_', '-') }}={{ value }} {% endfor %}"
+
+nsq_nsqlookupd: {}
+nsq_nsqd_lookupd_addresses: |
+  [{% for host in groups["nsqlookupd"] -%} "{{ host }}:4160", {% endfor -%}]
+nsq_nsqd:
+  auth_http_address:
+  #  <addr>:<port> to query auth server (may be given multiple times)
+  broadcast_address: "{{ ansible_hostname }}"
+  #  address that will be registered with lookupd (defaults to the OS hostname)
+  data_path: "{{ nsq_data_directory }}"
+  #  path to store disk_backed messages
+  deflate: true
+  #  enable deflate feature negotiation (client compression) (default true)
+  e2e_processing_latency_percentile:
+  #  message processing time percentiles (as float (0, 1.0]) to track (can be specified multiple times or comma separated '1.0,0.99,0.95', default none)
+  e2e_processing_latency_window_time: 600s
+  #  calculate end to end latency quantiles for this duration of time (ie: 60s would only show quantile calculations from the past 60 seconds) (default 10m0s)
+  http_address: "0.0.0.0:4151"
+  #  <addr>:<port> to listen on for HTTP clients (default "0.0.0.0:4151")
+  https_address: "0.0.0.0:4152"
+  #  <addr>:<port> to listen on for HTTPS clients (default "0.0.0.0:4152")
+  max_body_size: 5242880
+  #  maximum size of a single command body (default 5242880)
+  max_bytes_per_file: 104857600
+  #  number of bytes per diskqueue file before rolling (default 104857600)
+  max_deflate_level: 6
+  #  max deflate compression level a client can negotiate (> values == > nsqd CPU usage) (default 6)
+  max_heartbeat_interval: 60s
+  #  maximum client configurable duration of time between client heartbeats (default 1m0s)
+  max_msg_size: 1048576
+  #  maximum size of a single message in bytes (default 1048576)
+  max_msg_timeout: 900s
+  #  maximum duration before a message will timeout (default 15m0s)
+  max_output_buffer_size: 65536
+  #  maximum client configurable size (in bytes) for a client output buffer (default 65536)
+  max_output_buffer_timeout: 1s
+  #  maximum client configurable duration of time between flushing to a client (default 1s)
+  max_rdy_count: 2500
+  #  maximum RDY count for a client (default 2500)
+  max_req_timeout: 3600s
+  #  maximum requeuing timeout for a message (default 1h0m0s)
+  mem_queue_size: 10000
+  #  number of messages to keep in memory (per topic/channel) (default 10000)
+  msg_timeout: 60s
+  #  duration to wait before auto_requeing a message (default "1m0s")
+  snappy: true
+  #  enable snappy feature negotiation (client compression) (default true)
+  statsd_address: "localhost:9125"
+  #  UDP <addr>:<port> of a statsd daemon for pushing stats
+  statsd_prefix: nsq
+  #  UDP <addr>:<port> of a statsd daemon for pushing stats
+  statsd_interval: 10s
+  #  duration between pushing to statsd (default "1m0s")
+  statsd_mem_stats: true
+  #  toggle sending memory and GC stats to statsd (default true)
+  # statsd_prefix: '"nsq.%s"'
+  #  prefix used for keys sent to statsd (%s for host replacement) (default "nsq.%s")
+  sync_every: 2500
+  #  number of messages per diskqueue fsync (default 2500)
+  sync_timeout: 2s
+  #  duration of time per diskqueue fsync (default 2s)
+  tcp_address: "0.0.0.0:4150"
+  #  <addr>:<port> to listen on for TCP clients (default "0.0.0.0:4150")
+  tls_cert:
+  #  path to certificate file
+  tls_client_auth_policy:
+  #  client certificate auth policy ('require' or 'require_verify')
+  tls_key:
+  #  path to key file
+  tls_min_version: 'tls1.0'
+  #  minimum SSL/TLS version acceptable ('ssl3.0', 'tls1.0', 'tls1.1', or 'tls1.2') (default 769)
+  tls_required: false
+  #  require TLS for client connections (true, false, tcp_https)
+  tls_root_ca_file:
+  #  path to certificate authority file

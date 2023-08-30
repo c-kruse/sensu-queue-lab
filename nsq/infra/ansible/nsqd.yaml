@@ -1,0 +1,6 @@
+- hosts: nsqd
+  roles:
+    - common
+    - role: nsq
+      vars:
+        nsq_nsqd_install: true

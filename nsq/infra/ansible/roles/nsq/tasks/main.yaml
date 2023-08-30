@@ -1,0 +1,79 @@
+---
+- name: Add NSQ Group
+  become: yes
+  ansible.builtin.group:
+    name: nsq
+    state: present
+    gid: 1200
+
+- name: Add NSQ User
+  become: yes
+  ansible.builtin.user:
+    state: present
+    name: nsq
+    comment: NSQ User
+    uid: 1200
+    group: nsq
+
+- name: "Downloading NSQ binaries"
+  become: yes
+  get_url:
+    url: "{{ nsq_download_url }}"
+    dest: "/tmp/{{ nsq_release_archive }}"
+    owner: nsq
+    group: nsq
+    mode: 0644
+
+- name: "Creating NSQ data directory"
+  become: yes
+  file:
+    path: "{{ nsq_data_directory }}"
+    owner: nsq
+    group: nsq
+    mode: 0750
+    state: directory
+
+- name: "Creating NSQ config directory"
+  become: yes
+  file:
+    path: "{{ nsq_config_directory }}"
+    owner: nsq
+    group: nsq
+    mode: 0644
+    state: directory
+
+- name: Unarchive NSQ
+  become: yes
+  unarchive:
+    copy: no
+    src: "/tmp/{{ nsq_release_archive }}"
+    dest: /opt
+    creates: "/opt/{{ nsq_release }}/bin"
+
+- name: "Link NSQ binaries to /usr/local/bin"
+  become: yes
+  file:
+    src: "/opt/{{ nsq_release }}/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: nsq
+    group: nsq
+    state: link
+  with_items: "{{ nsq_binaries }}"
+
+- include: nsqlookupd.yml
+  when: nsq_nsqlookupd_install
+
+- include: nsqd.yml
+  when: nsq_nsqd_install
+
+- name: Copy load test tools
+  become: true
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: /opt/bin/
+    owner: root
+    group: root
+    mode: '0655'
+  loop:
+     - build/nsqload
+     - build/nsqsub

@@ -1,0 +1,4 @@
+- hosts: consumer
+  roles:
+    - common
+    - nsq

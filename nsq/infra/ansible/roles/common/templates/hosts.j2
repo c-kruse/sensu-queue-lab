@@ -1,0 +1,3 @@
+{% for host in hostvars -%}
+{{ hostvars[host].private_ip }} {{ host }}
+{% endfor -%}

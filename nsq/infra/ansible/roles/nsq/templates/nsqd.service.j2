@@ -1,0 +1,21 @@
+# {{ansible_managed}}
+
+[Unit]
+Description=NSQ nsqd service
+After=network.target
+Wants=network.target
+
+[Service]
+ExecStart=/opt/{{ nsq_release }}/bin/nsqd {{ nsq_nsqd_opts }} {% if nsq_nsqd_lookupd_addresses | length > 0 %}{% for item in nsq_nsqd_lookupd_addresses %}-lookupd-tcp-address={{ item }} {% endfor %}{% endif %}
+
+Restart=always
+RestartSec=20
+TimeoutSec=300
+User=nsq
+Group=nsq
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target

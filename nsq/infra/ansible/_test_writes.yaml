@@ -1,0 +1,15 @@
+##  Targets ~40k messages per second spread over N topics across all hosts in
+# the group.
+---
+- hosts: nsqd
+  vars:
+    topics: 1
+    messages_per_second: 40000
+    producers: "{{ ((messages_per_second | int) / (groups['nsqd'] | length) / ( topics | int) / 100) | int }}"
+    topic_names: |
+      [{% for i in range(1, (topics | int ) + 1) %} "sub-{{ i }}", {% endfor %}]
+  tasks:
+    - debug:
+        msg: "Starting {{ producers }} producers targeting 100 messages/sec between topics {{ topic_names }} on {{ groups['nsqd'] | length}} hosts. Total {{ (producers | int) * 100 * (topic_names | length) * ( groups['nsqd'] | length )}}."
+    - shell: "(tmux new-session -d '/opt/bin/nsqload -c {{ producers }} -r 100 -t 5m localhost:4150 {{ item }}')"
+      loop: "{{ topic_names }}"

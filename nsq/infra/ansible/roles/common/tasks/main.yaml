@@ -1,0 +1,55 @@
+---
+- name: update hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+  become: yes
+- name: update nofiles ulimit
+  become: yes
+  community.general.pam_limits:
+    domain: "*"
+    limit_type: '-'
+    limit_item: nofile
+    value: 999999
+    comment: bump nofile limit for all
+- name: tune tcp connections
+  become: yes
+  blockinfile:
+    path: /etc/sysctl.d/99-sysctl.conf
+    create: true
+    owner: root
+    group: root
+    mode: 0644
+    block: |
+      net.core.rmem_max = 16777216
+      net.core.wmem_max = 16777216
+      net.ipv4.tcp_rmem = 4096 87380 16777216
+      net.ipv4.tcp_wmem = 4096 65536 16777216
+      net.ipv4.tcp_syncookies = 1
+      net.ipv4.tcp_mem = 50576   64768   98152
+      net.core.netdev_max_backlog = 2500
+      net.ipv4.ip_local_port_range = 1024 65535
+      net.ipv4.ip_local_reserved_ports = 4150-4152,4160-4162,3000,9090,9100-9102
+    state: present
+- name: reload sysctl settings
+  become: yes
+  shell: sysctl -p
+- name: update /etc/hosts file
+  blockinfile:
+    dest: /etc/hosts
+    content: "{{ lookup('template', 'hosts.j2') }}"
+    state: present
+  become: yes
+- name: install tools
+  become: yes
+  yum:
+    name:
+      - jq
+      - tmux
+    state: latest
+- name: install prometheus components
+  include_role:
+    name: mesaguy.prometheus
+    tasks_from: '{{ prometheus_component }}'
+  loop_control:
+    loop_var: prometheus_component
+  with_items: "{{ common_monitoring_components }}"

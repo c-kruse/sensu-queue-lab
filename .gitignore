@@ -1,0 +1,6 @@
+.terraform
+terraform.*
+.terraform.*
+inventory/
+build/
+reports/

@@ -1,0 +1,5 @@
+---
+- import_playbook: monitoring.yaml
+- import_playbook: nsqd.yaml
+- import_playbook: nsqlookupd.yaml
+- import_playbook: consumer.yaml

@@ -1,0 +1,9 @@
+- hosts: monitoring
+  roles:
+    - name: common
+      vars:
+        common_monitoring_components:
+          - prometheus
+          - statsd_exporter
+          - node_exporter
+    - tailscale

@@ -1,21 +1,27 @@
 version: "3.8"
 
+x-base: &base
+  build: .
+  ulimits: # expecting high numbers of connections
+    nofile:
+      soft: 20_000
+      hard: 40_000
+
 services:
   nsqlookupd:
-    image: nsqio/nsq
+    <<: *base
     command: /nsqlookupd
 
   nsq-a:
-    image: nsqio/nsq
+    <<: *base
     command: ['/nsqd', '--lookupd-tcp-address=nsqlookupd:4160']
-    volumes:
-      - ./:/work
+
   nsq-b:
-    image: nsqio/nsq
+    <<: *base
     command: ['/nsqd', '--lookupd-tcp-address=nsqlookupd:4160']
   nsq-c:
-    image: nsqio/nsq
-    command: ['/nsqd', '--lookupd-tcp-address=nsqlookupd-1:4160,nsqlookupd-2:4160']
+    <<: *base
+    command: ['/nsqd', '--lookupd-tcp-address=nsqlookupd:4160']
 
   nsqadmin:
     image: nsqio/nsq

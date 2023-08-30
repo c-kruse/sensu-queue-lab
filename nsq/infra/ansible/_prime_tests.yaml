@@ -1,0 +1,22 @@
+---
+- hosts: nsqd
+  vars:
+    topics: 13
+    topic_names: |
+      [{% for i in range(1, (topics | int ) + 1) %} "sub-{{ i }}", {% endfor %}]
+  tasks:
+    - debug:
+        msg: "{{ topic_names }}"
+    - systemd:
+        state: restarted
+        name: nsqd.service
+      become: yes
+    - shell: "(tmux new-session -d '/opt/bin/nsqload -c 1 -r 1 -t 5s localhost:4150 {{ item }}')"
+      loop: "{{ topic_names }}"
+- hosts: consumer
+  vars:
+    topic_names: |
+      [{% for i in range(1, (topics | int ) + 1) %} "sub-{{ i }}", {% endfor %}]
+  tasks:
+    - shell: "(tmux new-session -d '/opt/bin/nsqsub -c 20 -t 45s nsqlookupd-0:4161 {{ item }} rr')"
+      loop: "{{ topic_names }}"

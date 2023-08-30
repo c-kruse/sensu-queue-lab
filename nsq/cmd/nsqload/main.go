@@ -1,31 +1,36 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
+
+	"github.com/nsqio/go-nsq"
 )
 
-const usage = `Usage: nsqload [OPTIONS] <url>
+const usage = `Usage: nsqload [OPTIONS] <nsqd tcp address> <topic>
 
 Options:
   -c number of concurrent producers
   -r rate in messages per second per producer
   -s size of each message in bytes
+  -t time to run. Default 30s
 `
 
 var (
 	numProducersFlag = flag.Uint("c", 1, "number of concurrent producers")
 	rateFlag         = flag.Uint("r", 100, "number of messages per second to target per producer")
 	messageSizeFlag  = flag.Uint("s", 1024, "size in bytes of each message")
+	timeFlag         = flag.Duration("t", time.Second*30, "time to run")
 )
 
 func main() {
@@ -34,7 +39,7 @@ func main() {
 	}
 	flag.Parse()
 
-	if flag.NArg() < 1 {
+	if flag.NArg() < 2 {
 		exitUsage()
 	}
 
@@ -49,8 +54,90 @@ func main() {
 	if *messageSizeFlag == 0 {
 		exitUsage("expected non-zero -size")
 	}
+	topic := flag.Arg(1)
+	if !nsq.IsValidTopicName(topic) {
+		exitUsage(fmt.Sprintf("invalid topic name %s", topic))
+	}
 
-	runProducers(nsqdURL, int(*numProducersFlag), int(*rateFlag), int(*messageSizeFlag))
+	var cReadyWG, cRunningWG sync.WaitGroup
+	begin := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	config := nsq.NewConfig()
+
+	type result struct {
+		Count    int
+		Duration time.Duration
+	}
+
+	results := make(chan result, int(*numProducersFlag))
+	size := int(*messageSizeFlag)
+	b64bytes := base64.StdEncoding.DecodedLen(size)
+	msgBase := seed(b64bytes)
+	body := make([]byte, size)
+	for i := 0; i < int(*numProducersFlag); i++ {
+		msgBase = rot(msgBase)
+		base64.StdEncoding.Encode(body, msgBase)
+
+		cRunningWG.Add(1)
+		cReadyWG.Add(1)
+		go func(msg []byte) {
+			defer cRunningWG.Done()
+			producer, err := nsq.NewProducer(nsqdURL, config)
+			if err != nil {
+				log.Fatal(err)
+			}
+			cReadyWG.Done()
+			<-begin
+
+			var count int
+			var elapsed time.Duration
+			defer func() {
+				results <- result{count, elapsed}
+			}()
+			ticker := time.Tick(time.Second / time.Duration(*rateFlag))
+			for {
+				pubResult := make(chan *nsq.ProducerTransaction)
+				<-ticker
+				start := time.Now()
+				producer.PublishAsync(topic, msg, pubResult)
+				select {
+				case <-ctx.Done():
+					return
+				case result := <-pubResult:
+					if result.Error != nil {
+						log.Printf("error publishing message: %v", err)
+					}
+					count++
+					elapsed = elapsed + time.Since(start)
+				}
+			}
+		}(body)
+	}
+	log.Printf("connected to %s with %d concurrent consumers", nsqdURL, *numProducersFlag)
+
+	cReadyWG.Wait()
+	close(begin)
+
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
+	deadline := time.After(*timeFlag)
+	go func() {
+		select {
+		case <-shutdown:
+			log.Println("received shutdown signal. Stoping consumers.")
+		case <-deadline:
+		}
+		cancel()
+	}()
+
+	go func() {
+		for r := range results {
+			fmt.Println(r)
+		}
+	}()
+
+	cRunningWG.Wait()
 
 }
 
@@ -60,36 +147,15 @@ func exitUsage(s ...any) {
 	os.Exit(1)
 }
 
-func runProducers(nsqd string, producers, rate, size int) {
-	b64bytes := base64.StdEncoding.DecodedLen(size)
-	seed := make([]byte, b64bytes)
+func seed(n int) []byte {
+	seed := make([]byte, n)
 	_, err := rand.Read(seed)
 	if err != nil {
 		log.Fatalf("could not create seed for random message: %s", err)
 	}
-	body := make([]byte, size)
-	base64.StdEncoding.Encode(body, seed)
-	var wg sync.WaitGroup
-	for i := 0; i < producers; i++ {
-		seed = append(seed[b64bytes-1:], seed[:b64bytes-1]...)
-		wg.Add(1)
-		go func(message []byte) {
-			defer wg.Done()
-			ticker := time.Tick(time.Second / time.Duration(rate))
-			for {
-				req, _ := http.NewRequest(http.MethodPost, nsqd, bytes.NewReader(message))
-				<-ticker
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					log.Printf("error: %v", err)
-					continue
-				}
-				if resp.StatusCode != http.StatusOK {
-					log.Printf("error: %v", resp)
-				}
+	return seed
+}
 
-			}
-		}(body)
-	}
-	wg.Wait()
+func rot(in []byte) []byte {
+	return append(in[len(in)-1:], in[:len(in)-1]...)
 }

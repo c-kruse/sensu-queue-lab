@@ -1,0 +1,6 @@
+- hosts: nsqlookupd
+  roles:
+    - common
+    - role: nsq
+      vars:
+        nsq_nsqlookupd_install: true

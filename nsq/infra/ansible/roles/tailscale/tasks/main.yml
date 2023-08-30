@@ -1,0 +1,18 @@
+---
+- name: Add tailscale repo
+  become: true
+  ansible.builtin.command: yum-config-manager --add-repo https://pkgs.tailscale.com/stable/amazon-linux/{{ ansible_distribution_major_version }}/tailscale.repo
+  args:
+    creates: /etc/yum.repos.d/tailscale.repo
+- name: Install Tailscale
+  become: true
+  yum:
+    name: tailscale
+    update_cache: true
+    state: present
+- name: Enable and start tailscaled
+  become: true
+  systemd:
+    name: tailscaled
+    state: started
+    enabled: true

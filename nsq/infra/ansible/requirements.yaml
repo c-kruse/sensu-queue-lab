@@ -1,0 +1,3 @@
+- src: https://github.com/ashleykleynhans/ansible-prometheus
+  version: master
+  name: mesaguy.prometheus

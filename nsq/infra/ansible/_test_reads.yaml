@@ -1,0 +1,18 @@
+## Starts a simuldated 20k agents across all hosts in the group.
+---
+- hosts: consumer
+  vars:
+    topics: 1
+    agents: 50000
+    consumers: "{{ ((agents | int) / (groups['consumer'] | length)) | int}}"
+    topic_names: |
+      [{% for i in range(1, (topics | int ) + 1) %} "sub-{{ i }}", {% endfor %}]
+    local_addrs: |
+      [{% for sip in ansible_eth0.ipv4_secondaries -%} "{{ sip.address }}",{% endfor -%}]
+  tasks:
+    - debug:
+        msg: "Starting {{ consumers }} consumers on topics {{ topic_names }}"
+    - shell: "(tmux new-session -d '/opt/bin/nsqsub -c {{ consumers }} -d 150ms -localaddr {{ local_addrs[idx % (local_addrs | length)] }} -t 5m -o {{ item }}-`date -Ins`.out nsqlookupd-0:4161 {{ item }} rr') && sleep 2"
+      loop: "{{ topic_names }}"
+      loop_control:
+        index_var: idx
